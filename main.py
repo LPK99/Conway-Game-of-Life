@@ -1,65 +1,72 @@
+import time
 import pygame
 import numpy as np
 
-
-col_about_to_die = (200, 200, 225)
-col_alive = (255, 255, 215)
-col_background = (10, 10, 40)
-col_grid = (30, 30, 60)
-
-
-def update(surface, cur, sz):
-    nxt = np.zeros((cur.shape[0], cur.shape[1]))
-
-    for r, c in np.ndindex(cur.shape):
-        num_alive = np.sum(cur[r-1:r+2, c-1:c+2]) - cur[r, c]
-
-        if cur[r, c] == 1 and num_alive < 2 or num_alive > 3:
-            col = col_about_to_die
-        elif (cur[r, c] == 1 and 2 <= num_alive <= 3) or (cur[r, c] == 0 and num_alive == 3):
-            nxt[r, c] = 1
-            col = col_alive
-
-        col = col if cur[r, c] == 1 else col_background
-        pygame.draw.rect(surface, col, (c*sz, r*sz, sz-1, sz-1))
-
-    return nxt
+COLOR_BG = (10, 10, 10)
+COLOR_GRID = (40, 40, 40)
+COLOR_DIE_NEXT = (170, 170, 170)
+COLOR_ALIVE_NEXT = (255, 255, 255)
 
 
-def init(dimx, dimy):
-    cells = np.zeros((dimy, dimx))
+def update(screen, cells, size, with_progress=False):
+    updated_cells = np.zeros((cells.shape[0], cells.shape[1]))
 
-    pattern = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                        [0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0],
-                        [0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0],
-                        [1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                        [1,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                        [0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                        [0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-                        [0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]);
-    pos = (3,3)
-    cells[pos[0]:pos[0]+pattern.shape[0], pos[1]:pos[1]+pattern.shape[1]] = pattern
-    return cells
+    for row, col in np.ndindex(cells.shape):
+        alive = np.sum(cells[row-1:row+2, col-1:col+2]) - cells[row, col]
+        color = COLOR_BG if cells[row, col] == 0 else COLOR_ALIVE_NEXT
 
+        if cells[row, col] == 1:
+            if alive < 2 or alive > 3:
+                if with_progress:
+                    color = COLOR_DIE_NEXT
+            elif 2 <= alive <= 3:
+                updated_cells[row, col] = 1
+                if with_progress:
+                    color = COLOR_ALIVE_NEXT
+        else:
+            if alive == 3:
+                updated_cells[row, col] = 1
+                if with_progress:
+                    color = COLOR_ALIVE_NEXT
+                    
+        pygame.draw.rect(screen, color, (col*size, row*size, size - 1, size - 1))
+    
+    return updated_cells
 
-def main(dimx, dimy, cellsize):
+def main():
     pygame.init()
-    surface = pygame.display.set_mode((dimx * cellsize, dimy * cellsize))
-    pygame.display.set_caption("John Conway's Game of Life")
-
-    cells = init(dimx, dimy)
-
+    screen = pygame.display.set_mode((800, 600))
+    cells = np.zeros((60, 80))
+    screen.fill(COLOR_GRID)
+    update(screen, cells, 10)
+    
+    pygame.display.flip()
+    pygame.display.update()
+    
+    running = False
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    running = not running
+                    update(screen, cells, 10)
+                    pygame.display.update()
+            if pygame.mouse.get_pressed()[0]:
+                pos = pygame.mouse.get_pos()
+                cells[pos[1] // 10, pos[0] // 10] = 1
+                update(screen, cells, 10)
+                pygame.display.update()
+        screen.fill(COLOR_GRID)
+        
+        if running:
+            cells = update(screen, cells, 10, with_progress=True)
+            pygame.display.update()
+        time.sleep(0.001)
+        
+if __name__ == '__main__':
+    main()
 
-        surface.fill(col_grid)
-        cells = update(surface, cells, cellsize)
-        pygame.display.update()
-
-
-if __name__ == "__main__":
-    main(100, 70, 8)
+                    
